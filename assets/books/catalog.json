@@ -1,0 +1,33 @@
+{
+  "books": [
+    {
+      "id": "inkmind_classic_tales",
+      "title": "墨海古今录",
+      "author": "墨智工作室",
+      "category": "经典",
+      "coverAsset": "assets/books/covers/inkmind_classic_tales.png",
+      "tags": ["古典", "群像", "家国"],
+      "wordCount": 120000,
+      "status": "completed",
+      "intro": "以虚构朝代为背景，融合家国兴衰与个人命运，向四大名著致敬的原创长篇故事选段。",
+      "sourceType": "asset",
+      "heatScore": 98,
+      "detailAsset": "assets/books/inkmind_classic_tales.json"
+    },
+    {
+      "id": "inkmind_scifi_frontier",
+      "title": "星河边界笔记",
+      "author": "墨智工作室",
+      "category": "科幻",
+      "coverAsset": "assets/books/covers/inkmind_scifi_frontier.png",
+      "tags": ["科幻", "文明", "思辨"],
+      "wordCount": 80000,
+      "status": "serializing",
+      "intro": "一次意外信号，让地球与深空文明短暂牵连，一名普通医生被卷入多文明博弈的边缘。",
+      "sourceType": "asset",
+      "heatScore": 91,
+      "detailAsset": "assets/books/inkmind_scifi_frontier.json"
+    }
+  ]
+}
+
