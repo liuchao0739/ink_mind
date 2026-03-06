@@ -34,6 +34,12 @@ dependencies:
   # State management
   flutter_riverpod: ^2.6.1
 
+  # HTTP for public-domain APIs
+  http: ^1.2.2
+
+  # HTTP client with interceptors / timeouts
+  dio: ^5.7.0
+
   # Local storage
   hive: ^2.2.3
   hive_flutter: ^1.1.0
@@ -43,13 +49,16 @@ dependencies:
   file_picker: ^8.1.4
 
   # Text to speech
-  flutter_tts: ^4.0.2
+  flutter_tts: 3.8.5
 
   # Date/time & formatting helpers
   intl: ^0.19.0
 
   # Simple charts for reading stats
   fl_chart: ^0.69.0
+
+  # Launch external URLs (官方阅读链接等)
+  url_launcher: ^6.3.0
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -66,6 +75,9 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^3.0.0
 
+  # App icon generator（需准备 assets/branding/icon.png 后手动执行）
+  flutter_launcher_icons: ^0.14.0
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
@@ -80,6 +92,21 @@ flutter:
   assets:
     - assets/books/catalog.json
     - assets/books/
+    - assets/branding/
+
+flutter_launcher_icons:
+  image_path: "assets/branding/icon.png"
+  android: true
+  ios: true
+  web:
+    generate: true
+    image_path: "assets/branding/icon.png"
+  macos:
+    generate: true
+    image_path: "assets/branding/icon.png"
+  windows:
+    generate: true
+    image_path: "assets/branding/icon.png"
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

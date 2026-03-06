@@ -3,19 +3,10 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'features/home/home_page.dart';
-import 'core/hive_boxes.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
-  await Future.wait([
-    Hive.openBox(HiveBoxes.bookshelf),
-    Hive.openBox(HiveBoxes.readingProgress),
-    Hive.openBox(HiveBoxes.userPreference),
-    Hive.openBox(HiveBoxes.readingStats),
-    Hive.openBox(HiveBoxes.aiHighlights),
-  ]);
-
   runApp(const ProviderScope(child: InkMindApp()));
 }
 

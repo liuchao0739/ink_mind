@@ -12,9 +12,10 @@ class BookAssetDataSource {
     final raw = await rootBundle.loadString('assets/books/catalog.json');
     final jsonMap = json.decode(raw) as Map<String, dynamic>;
     final booksJson = jsonMap['books'] as List<dynamic>? ?? [];
-    return booksJson
+    final result = booksJson
         .map((e) => Book.fromJson(e as Map<String, dynamic>))
         .toList();
+    return result;
   }
 
   Future<(Book, List<Chapter>)> loadBookDetail(String detailAssetPath) async {

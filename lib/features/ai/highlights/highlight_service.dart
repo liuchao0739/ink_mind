@@ -39,12 +39,7 @@ class HighlightService {
   }
 
   Future<AiHighlight?> _loadFromAsset(Book book, int chapterIndex) async {
-    final mapping = {
-      'inkmind_classic_tales':
-          'assets/books/inkmind_classic_tales_highlights.json',
-      'inkmind_scifi_frontier':
-          'assets/books/inkmind_scifi_frontier_highlights.json',
-    };
+    final mapping = <String, String>{};
     final path = mapping[book.id];
     if (path == null) return null;
 

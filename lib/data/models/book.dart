@@ -1,7 +1,8 @@
 enum BookSourceType {
   asset,
   localFile,
-  remotePlaceholder,
+  publicDomainApi,
+  copyrightLink,
 }
 
 class Book {
@@ -17,6 +18,10 @@ class Book {
     this.intro = '',
     this.sourceType = BookSourceType.asset,
     this.heatScore = 0,
+    this.remoteApiId,
+    this.externalUrl,
+    this.detailAsset,
+    this.localFilePath,
   });
 
   final String id;
@@ -30,6 +35,11 @@ class Book {
   final String intro;
   final BookSourceType sourceType;
   final int heatScore;
+  final String? remoteApiId;
+  final String? externalUrl;
+  final String? detailAsset;
+  /// 本地导入书籍时的文件路径，仅在 [BookSourceType.localFile] 下有意义。
+  final String? localFilePath;
 
   Book copyWith({
     String? id,
@@ -43,6 +53,10 @@ class Book {
     String? intro,
     BookSourceType? sourceType,
     int? heatScore,
+    String? remoteApiId,
+    String? externalUrl,
+    String? detailAsset,
+    String? localFilePath,
   }) {
     return Book(
       id: id ?? this.id,
@@ -56,6 +70,10 @@ class Book {
       intro: intro ?? this.intro,
       sourceType: sourceType ?? this.sourceType,
       heatScore: heatScore ?? this.heatScore,
+      remoteApiId: remoteApiId ?? this.remoteApiId,
+      externalUrl: externalUrl ?? this.externalUrl,
+      detailAsset: detailAsset ?? this.detailAsset,
+      localFilePath: localFilePath ?? this.localFilePath,
     );
   }
 
@@ -74,6 +92,10 @@ class Book {
       intro: json['intro'] as String? ?? '',
       sourceType: _parseSourceType(json['sourceType'] as String?),
       heatScore: json['heatScore'] as int? ?? 0,
+      remoteApiId: json['remoteApiId'] as String?,
+      externalUrl: json['externalUrl'] as String?,
+      detailAsset: json['detailAsset'] as String?,
+      localFilePath: json['localFilePath'] as String?,
     );
   }
 
@@ -90,6 +112,10 @@ class Book {
       'intro': intro,
       'sourceType': sourceType.name,
       'heatScore': heatScore,
+      'remoteApiId': remoteApiId,
+      'externalUrl': externalUrl,
+      'detailAsset': detailAsset,
+      'localFilePath': localFilePath,
     };
   }
 
@@ -99,8 +125,10 @@ class Book {
         return BookSourceType.asset;
       case 'localFile':
         return BookSourceType.localFile;
-      case 'remotePlaceholder':
-        return BookSourceType.remotePlaceholder;
+      case 'publicDomainApi':
+        return BookSourceType.publicDomainApi;
+      case 'copyrightLink':
+        return BookSourceType.copyrightLink;
       default:
         return BookSourceType.asset;
     }

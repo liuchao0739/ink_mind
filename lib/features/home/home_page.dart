@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/models/book.dart';
 import '../../data/repositories/book_repository.dart';
+import '../../data/datasources/remote/gutendex_book_data_source.dart';
+import '../../data/datasources/remote/composite_remote_book_data_source.dart';
 import '../bookshelf/bookshelf_page.dart';
 import '../bookshelf/bookshelf_providers.dart';
 import '../reader/reader_page.dart';
@@ -10,7 +14,12 @@ import '../ai/recommendation/recommendation_engine.dart';
 import '../stats/stats_page.dart';
 
 final bookRepositoryProvider = Provider<BookRepository>((ref) {
-  return BookRepository();
+  final remote = CompositeRemoteBookDataSource(
+    sources: [
+      GutendexBookDataSource(),
+    ],
+  );
+  return BookRepository(remoteDataSource: remote);
 });
 
 final _searchKeywordProvider = StateProvider<String>((ref) => '');
@@ -39,8 +48,54 @@ class HomePage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('墨智 · InkMind'),
+        title: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.menu_book_rounded),
+            SizedBox(width: 8),
+            Text('墨智 · InkMind'),
+          ],
+        ),
         actions: [
+          IconButton(
+            onPressed: () async {
+              try {
+                final result = await FilePicker.platform.pickFiles(
+                  type: FileType.custom,
+                  allowedExtensions: ['txt'],
+                );
+                if (result == null || result.files.isEmpty) {
+                  return;
+                }
+                final path = result.files.single.path;
+                if (path == null || path.isEmpty) {
+                  return;
+                }
+                final repo = ref.read(bookRepositoryProvider);
+                final book = await repo.addLocalBookFromFile(path);
+                // 刷新列表，展示新导入的书。
+                // ignore: unused_result
+                ref.refresh(_bookListProvider);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('已导入本地书籍：${book.title}'),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('导入失败：$e'),
+                    ),
+                  );
+                }
+              }
+            },
+            icon: const Icon(Icons.file_open_outlined),
+            tooltip: '导入本地 TXT',
+          ),
           IconButton(
             onPressed: () {
               Navigator.of(context).push(
@@ -71,7 +126,7 @@ class HomePage extends ConsumerWidget {
             padding: const EdgeInsets.all(12),
             child: TextField(
               decoration: const InputDecoration(
-                hintText: '搜索书名 / 作者 / 标签',
+                hintText: '搜索书名获取完整公版书（如 pride、sherlock）',
                 prefixIcon: Icon(Icons.search),
                 border: OutlineInputBorder(),
               ),
@@ -83,7 +138,15 @@ class HomePage extends ConsumerWidget {
             child: booksAsync.when(
               data: (books) {
                 if (books.isEmpty) {
-                  return const Center(child: Text('暂时没有可展示的书籍'));
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        '搜索书名获取完整公版书\n（如 pride、sherlock、adventure）',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  );
                 }
                 return ListView(
                   children: [
@@ -193,7 +256,9 @@ class HomePage extends ConsumerWidget {
                       return ListTile(
                         leading: const Icon(Icons.menu_book_outlined),
                         title: Text(book.title),
-                        subtitle: Text('${book.author} · ${book.category}'),
+                        subtitle: Text(
+                          '${book.author} · ${book.category} · ${_sourceLabel(book.sourceType)}',
+                        ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -206,15 +271,43 @@ class HomePage extends ConsumerWidget {
                               ),
                             ),
                             IconButton(
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute<void>(
-                                    builder: (_) => ReaderPage(book: book),
-                                  ),
-                                );
+                              onPressed: () async {
+                                if (book.sourceType ==
+                                        BookSourceType.copyrightLink &&
+                                    book.externalUrl != null &&
+                                    book.externalUrl!.isNotEmpty) {
+                                  try {
+                                    final uri = Uri.parse(book.externalUrl!);
+                                    await launchUrl(
+                                      uri,
+                                      mode: LaunchMode.externalApplication,
+                                    );
+                                  } catch (e) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content:
+                                            Text('打开链接失败：$e'),
+                                      ),
+                                    );
+                                  }
+                                } else {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => ReaderPage(book: book),
+                                    ),
+                                  );
+                                }
                               },
-                              icon: const Icon(Icons.menu_book),
-                              tooltip: '开始阅读',
+                              icon: Icon(
+                                book.sourceType ==
+                                        BookSourceType.copyrightLink
+                                    ? Icons.open_in_new
+                                    : Icons.menu_book,
+                              ),
+                              tooltip: book.sourceType ==
+                                      BookSourceType.copyrightLink
+                                  ? '前往官方阅读'
+                                  : '开始阅读',
                             ),
                             IconButton(
                               onPressed: () {
@@ -241,9 +334,26 @@ class HomePage extends ConsumerWidget {
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (error, stackTrace) {
                 return Center(
-                  child: Text(
-                    '加载书库失败：$error',
-                    textAlign: TextAlign.center,
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '加载书库失败：$error',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 12),
+                        ElevatedButton(
+                          onPressed: () {
+                            // 触发重新加载，FutureProvider 会自动重建。
+                            // ignore: unused_result
+                            ref.refresh(_bookListProvider);
+                          },
+                          child: const Text('重试'),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -254,4 +364,18 @@ class HomePage extends ConsumerWidget {
     );
   }
 }
+
+String _sourceLabel(BookSourceType type) {
+  switch (type) {
+    case BookSourceType.asset:
+      return '本地示例';
+    case BookSourceType.localFile:
+      return '本地导入';
+    case BookSourceType.publicDomainApi:
+      return '公版在线';
+    case BookSourceType.copyrightLink:
+      return '正版链接';
+  }
+}
+
 
