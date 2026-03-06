@@ -1,5 +1,6 @@
 # Miscellaneous
 *.class
+*.lock
 *.log
 *.pyc
 *.swp
@@ -41,3 +42,27 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Additional Flutter/Platform specific ignores from upstream template
+**/generated_plugin_registrant.dart
+.packages
+.pub-preload-cache/
+build/
+flutter_*.png
+linked_*.ds
+unlinked.ds
+unlinked_spec.ds
+.gradle/
+**/android/captures/
+**/android/local.properties
+**/android/key.properties
+*.jks
+**/ios/**/DerivedData/
+**/ios/**/Pods/
+**/ios/**/.symlinks/
+**/ios/**/xcuserdata
+**/macos/**/DerivedData/
+**/macos/**/Pods/
+**/macos/**/.symlinks/
+**/macos/**/xcuserdata
+coverage/
