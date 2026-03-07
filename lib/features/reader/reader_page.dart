@@ -93,19 +93,31 @@ class ReaderController extends StateNotifier<ReaderState> {
   final TtsService _ttsService = TtsService();
 
   Future<void> init() async {
+    print('ReaderController: init called for book ${state.book.id}');
     state = state.copyWith(isLoading: true, errorMessage: null);
     try {
       await _ttsService.init();
+      print('ReaderController: Getting chapters for book ${state.book.id}, remoteApiId: ${state.book.remoteApiId}');
       final chapters = await _bookRepository.getChaptersForBook(state.book);
+      print('ReaderController: Got ${chapters.length} chapters');
       final progress = await _readingRepository.getProgress(state.book.id);
 
+      final initialChapterIndex = progress?.chapterIndex ?? 0;
+
+      // 先设置章节列表到 state
       state = state.copyWith(
         chapters: chapters,
-        currentChapterIndex: progress?.chapterIndex ?? 0,
+        currentChapterIndex: initialChapterIndex,
         currentPageIndex: progress?.pageIndex ?? 0,
         scrollOffset: progress?.scrollOffset ?? 0.0,
         isLoading: false,
       );
+
+      // 然后加载第一章内容
+      if (chapters.isNotEmpty) {
+        print('ReaderController: Loading chapter content for index $initialChapterIndex');
+        await loadChapterContent(initialChapterIndex);
+      }
     } catch (e, st) {
       // ignore: avoid_print
       print('Reader init failed for book ${state.book.id}: $e\n$st');
@@ -129,10 +141,47 @@ class ReaderController extends StateNotifier<ReaderState> {
     );
   }
 
+  /// 加载指定章节的内容（懒加载）
+  Future<String> loadChapterContent(int chapterIndex) async {
+    print('loadChapterContent: chapterIndex=$chapterIndex');
+    if (chapterIndex < 0 || chapterIndex >= state.chapters.length) {
+      print('loadChapterContent: out of range');
+      return '';
+    }
+    final chapter = state.chapters[chapterIndex];
+    print('loadChapterContent: chapter.id=${chapter.id}, content.length=${chapter.content?.length ?? 0}');
+    // 如果已有内容，直接返回
+    if (chapter.content != null && chapter.content!.isNotEmpty) {
+      print('loadChapterContent: already has content');
+      return chapter.content!;
+    }
+    // 尝试从仓库获取内容
+    try {
+      print('loadChapterContent: calling getChapterContent for ${chapter.id}');
+      final content = await _bookRepository.getChapterContent(chapter.id, state.book);
+      print('loadChapterContent: got content length=${content.length}');
+      if (content.isNotEmpty) {
+        // 更新章节内容
+        final updatedChapters = List<Chapter>.from(state.chapters);
+        updatedChapters[chapterIndex] = chapter.copyWith(content: content);
+        state = state.copyWith(chapters: updatedChapters);
+        return content;
+      }
+    } catch (e) {
+      print('Failed to load chapter content: $e');
+    }
+    return '';
+  }
+
   Future<void> updatePage({
     required int chapterIndex,
     required int pageIndex,
   }) async {
+    // 切换章节时懒加载内容
+    if (chapterIndex != state.currentChapterIndex) {
+      await loadChapterContent(chapterIndex);
+    }
+
     state = state.copyWith(
       currentChapterIndex: chapterIndex,
       currentPageIndex: pageIndex,
@@ -216,22 +265,29 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
 
   @override
   void dispose() {
-    _recordReadingSession();
+    // Record reading session in a safe way - use addPostFrameCallback to avoid
+    // using ref after widget is disposed
+    final start = _startTime;
+    if (start != null) {
+      final duration = DateTime.now().difference(start);
+      if (duration.inSeconds > 0) {
+        final book = widget.book;
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (!mounted) return;
+          try {
+            final statsRepo = ref.read(statsRepositoryProvider);
+            await statsRepo.addReadingSession(
+              duration: duration,
+              book: book,
+            );
+          } catch (_) {
+            // Ignore errors when recording session
+          }
+        });
+      }
+    }
     _pageController?.dispose();
     super.dispose();
-  }
-
-  Future<void> _recordReadingSession() async {
-    final start = _startTime;
-    if (start == null) return;
-    final duration = DateTime.now().difference(start);
-    if (duration.inSeconds <= 0) return;
-    final statsRepo =
-        ref.read(statsRepositoryProvider);
-    await statsRepo.addReadingSession(
-      duration: duration,
-      book: widget.book,
-    );
   }
 
   @override

@@ -7,11 +7,7 @@ import '../../data/models/book.dart';
 import '../../data/repositories/book_repository.dart';
 import '../../data/datasources/remote/gutendex_book_data_source.dart';
 import '../../data/datasources/remote/composite_remote_book_data_source.dart';
-import '../../data/datasources/remote/biquge_book_data_source.dart';
-import '../../data/datasources/remote/dingdian_book_data_source.dart';
-import '../../data/datasources/remote/bayi_book_data_source.dart';
-import '../../data/datasources/remote/mock_novel_data_source.dart';
-import '../../data/datasources/remote/novel_api_data_source.dart';
+import '../../data/datasources/remote/ctext_book_data_source.dart';
 import '../bookshelf/bookshelf_page.dart';
 import '../bookshelf/bookshelf_providers.dart';
 import '../reader/reader_page.dart';
@@ -21,14 +17,11 @@ import '../../data/datasources/local_storage/hive_search_history_data_source.dar
 
 final bookRepositoryProvider = Provider<BookRepository>((ref) {
   print('HomePage: Creating BookRepository');
+  // 使用真实数据源
   final remote = CompositeRemoteBookDataSource(
     sources: [
-      GutendexBookDataSource(),
-      BiQuGeBookDataSource(),
-      DingDianBookDataSource(),
-      BaYiBookDataSource(),
-      NovelApiDataSource(), // 添加通用小说API数据源
-      MockNovelDataSource(), // 添加模拟数据源，确保能搜索到小说
+      GutendexBookDataSource(),  // 英文公版书
+      CtextDataSource(),         // 中文古籍 (ctext.org)
     ],
   );
   final repo = BookRepository(remoteDataSource: remote);

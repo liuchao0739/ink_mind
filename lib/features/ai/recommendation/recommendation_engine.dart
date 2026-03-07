@@ -1,9 +1,27 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../data/models/book.dart';
+import '../../../data/models/book.dart' show Book, BookSourceType;
 import '../../../data/models/bookshelf_item.dart';
 import '../../bookshelf/bookshelf_providers.dart';
 import '../../home/home_page.dart';
+
+/// 知名书籍列表 - 用于首页推荐
+const List<Map<String, String>> _famousBooks = [
+  // 英文经典
+  {'title': 'Pride and Prejudice', 'author': 'Jane Austen', 'category': 'Classic Literature'},
+  {'title': 'Harry Potter', 'author': 'J.K. Rowling', 'category': 'Fantasy'},
+  {'title': 'The Great Gatsby', 'author': 'F. Scott Fitzgerald', 'category': 'Classic Literature'},
+  {'title': '1984', 'author': 'George Orwell', 'category': 'Dystopian'},
+  {'title': 'To Kill a Mockingbird', 'author': 'Harper Lee', 'category': 'Classic Literature'},
+  {'title': 'The Lord of the Rings', 'author': 'J.R.R. Tolkien', 'category': 'Fantasy'},
+  // 中文古籍
+  {'title': '红楼梦', 'author': '曹雪芹', 'category': '古籍'},
+  {'title': '西游记', 'author': '吴承恩', 'category': '古籍'},
+  {'title': '三国演义', 'author': '罗贯中', 'category': '古籍'},
+  {'title': '水浒传', 'author': '施耐庵', 'category': '古籍'},
+  {'title': '论语', 'author': '孔子', 'category': '古籍'},
+  {'title': '孟子', 'author': '孟轲', 'category': '古籍'},
+];
 
 class RecommendationEngine {
   const RecommendationEngine({
@@ -16,7 +34,15 @@ class RecommendationEngine {
 
   List<Book> recommendForYou() {
     if (books.isEmpty) {
-      return const [];
+      // 如果没有书籍，返回知名书籍列表
+      return _famousBooks.map((b) => Book(
+        id: 'famous_${b['title']}',
+        title: b['title']!,
+        author: b['author']!,
+        category: b['category']!,
+        sourceType: BookSourceType.publicDomainApi,
+        remoteApiId: b['title'],
+      )).toList();
     }
 
     final now = DateTime.now().millisecondsSinceEpoch;

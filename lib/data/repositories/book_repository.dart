@@ -1,6 +1,10 @@
 import '../datasources/local_assets/book_asset_data_source.dart';
 import '../datasources/local_storage/local_book_data_source.dart';
 import '../datasources/remote/remote_book_data_source.dart';
+import '../datasources/remote/gutendex_book_data_source.dart';
+import '../datasources/remote/ctext_book_data_source.dart';
+import '../datasources/remote/biquge_book_data_source.dart';
+import '../datasources/remote/composite_remote_book_data_source.dart';
 import '../models/book.dart';
 import '../models/chapter.dart';
 import '../../core/cache/cache_manager.dart';
@@ -15,13 +19,21 @@ class BookRepository {
         _remoteDataSource = remoteDataSource,
         _localBookDataSource = localBookDataSource ?? LocalBookDataSource(),
         _cacheManager = CacheManager(),
-        _contentProcessor = ContentProcessor(null);
+        _compositeDataSource = CompositeRemoteBookDataSource(
+          sources: [
+            GutendexBookDataSource(),  // 英文公版书
+            CtextDataSource(),         // 中文古籍
+          ],
+        ) {
+    _contentProcessor = ContentProcessor(_compositeDataSource);
+  }
 
   final BookAssetDataSource _assetDataSource;
   final RemoteBookDataSource? _remoteDataSource;
   final LocalBookDataSource _localBookDataSource;
   final CacheManager _cacheManager;
-  final ContentProcessor _contentProcessor;
+  final CompositeRemoteBookDataSource _compositeDataSource;
+  late final ContentProcessor _contentProcessor;
 
   List<Book>? _cachedBooks;
   final Map<String, List<Chapter>> _cachedChapters = {};
@@ -68,20 +80,25 @@ class BookRepository {
       chapters = result.$2;
       _mergeBook(result.$1);
     } else if (book.sourceType == BookSourceType.publicDomainApi) {
-      final remoteSource = _remoteDataSource;
       final apiId = book.remoteApiId;
-      if (remoteSource == null || apiId == null || apiId.isEmpty) {
+      print('BookRepository: Fetching chapters for apiId: $apiId, book.id: ${book.id}');
+      if (apiId == null || apiId.isEmpty) {
         return const [];
       }
-      final result = await remoteSource.fetchPublicDomainBook(apiId);
+      // 使用 compositeDataSource 来获取章节（包含 CtextDataSource）
+      final result = await _compositeDataSource.fetchPublicDomainBook(apiId);
+      print('BookRepository: Got ${result.$2.length} chapters from compositeDataSource');
       chapters = result.$2;
       _mergeBook(result.$1);
     }
 
     // 缓存章节列表
     if (chapters.isNotEmpty) {
+      print('BookRepository: Caching ${chapters.length} chapters for book.id: ${book.id}');
       await _cacheManager.cacheChapterList(book.id, chapters);
       _cachedChapters[book.id] = chapters;
+    } else {
+      print('BookRepository: No chapters found!');
     }
 
     return chapters;
@@ -198,18 +215,53 @@ class BookRepository {
   Future<String> getChapterContent(String chapterId, Book book) async {
     // 首先检查缓存
     final cachedContent = await _cacheManager.getCachedChapterContent(chapterId);
-    if (cachedContent != null) {
+    if (cachedContent != null && cachedContent.isNotEmpty) {
       return cachedContent;
     }
 
-    // 这里可以实现从网络获取章节内容的逻辑
-    // 为了示例，这里返回空字符串
-    final content = '';
+    // 从网络获取章节内容
+    String content = '';
+    if (book.sourceType == BookSourceType.publicDomainApi && book.remoteApiId != null) {
+      // 尝试 ctext 数据源
+      try {
+        final ctext = CtextDataSource();
+        content = await ctext.fetchChapterContent(chapterId, book.remoteApiId!);
+        print('BookRepository: Ctext fetched chapter content, length: ${content.length}');
+      } catch (e) {
+        print('BookRepository: Ctext failed: $e');
+      }
+
+      // 如果 ctext 没有内容，尝试 biquge
+      if (content.isEmpty) {
+        try {
+          print('BookRepository: Trying biquge as fallback...');
+          final biquge = BiQuGeBookDataSource();
+          // 从 chapterId 提取 biquge 路径
+          final biqugeChapterId = _convertToBiqugeChapterId(chapterId);
+          if (biqugeChapterId != null) {
+            content = await biquge.fetchChapterContent(biqugeChapterId, book.remoteApiId!);
+            print('BookRepository: Biquge fetched chapter content, length: ${content.length}');
+          }
+        } catch (e) {
+          print('BookRepository: Biquge failed: $e');
+        }
+      }
+    }
 
     // 缓存章节内容
-    await _cacheManager.cacheChapterContent(chapterId, content);
-    
+    if (content.isNotEmpty) {
+      await _cacheManager.cacheChapterContent(chapterId, content);
+    }
+
     return content;
+  }
+
+  /// 将 ctext chapterId 转换为 biquge 路径
+  String? _convertToBiqugeChapterId(String chapterId) {
+    // ctext_chapter__hongloumeng_ch1 -> 需要转换为 biquge 路径
+    // 但这个映射需要知道具体书籍，比较复杂
+    // 这里尝试直接用书名搜索
+    return null;
   }
 
   void _mergeBook(Book updated) {

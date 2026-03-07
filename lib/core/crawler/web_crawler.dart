@@ -25,25 +25,6 @@ class WebCrawler {
   /// 爬取99读书网的书籍
   Future<Map<String, dynamic>> crawl99CSW(String bookUrl) async {
     try {
-      // 直接返回模拟数据，绕过99csw.com的反爬虫限制
-      if (bookUrl.contains('99csw.com/book/576')) {
-        print('WebCrawler: Using mock data for 三体');
-        return {
-          'book': {
-            'title': '三体',
-            'author': '刘慈欣',
-            'intro': '文化大革命如火如荼地进行，天文学家叶文洁在运动中遭受迫害，被送到青海支援建设。她在荒无人烟的雷达站接收到了一段来自宇宙深处的信息。这段信息改变了人类的命运...',
-          },
-          'chapters': [
-            {'id': 'chapter_0', 'title': '第一章 科学边界', 'url': 'https://www.99csw.com/book/576/1.htm', 'index': 0},
-            {'id': 'chapter_1', 'title': '第二章 台球', 'url': 'https://www.99csw.com/book/576/2.htm', 'index': 1},
-            {'id': 'chapter_2', 'title': '第三章 射手和农场主', 'url': 'https://www.99csw.com/book/576/3.htm', 'index': 2},
-            {'id': 'chapter_3', 'title': '第四章 科学边界', 'url': 'https://www.99csw.com/book/576/4.htm', 'index': 3},
-            {'id': 'chapter_4', 'title': '第五章 三体问题', 'url': 'https://www.99csw.com/book/576/5.htm', 'index': 4},
-          ],
-        };
-      }
-
       final html = await crawl(bookUrl);
       if (html.isEmpty) {
         return {};
@@ -118,28 +99,33 @@ class WebCrawler {
   /// 爬取章节内容
   Future<String> crawlChapter(String chapterUrl) async {
     try {
-      // 直接返回模拟数据，绕过99csw.com的反爬虫限制
-      if (chapterUrl.contains('99csw.com/book/576')) {
-        print('WebCrawler: Using mock chapter data for 三体');
-        return '文化大革命如火如荼地进行，天文学家叶文洁在运动中遭受迫害，被送到青海支援建设。她在荒无人烟的雷达站接收到了一段来自宇宙深处的信息。这段信息改变了人类的命运...\n\n叶文洁是一个天才的天文学家，她对宇宙充满了好奇和探索的欲望。然而，在文化大革命的动荡中，她的家庭遭受了巨大的打击，她的父亲被批斗致死，她的母亲背叛了家庭，她的妹妹也与她反目成仇。\n\n在青海的雷达站，叶文洁遇到了一个来自三体文明的信息。三体文明是一个位于半人马座α星系的高度发达的文明，他们的星球正面临着毁灭的危险，因为他们的恒星系统有三个太阳，运行轨道极其不稳定，导致他们的文明多次毁灭和重生。\n\n叶文洁决定帮助三体文明，她希望他们能够来到地球，拯救人类免受自我毁灭的命运。她建立了一个秘密组织，名为ETO（地球三体组织），旨在帮助三体文明入侵地球。\n\n然而，叶文洁并不知道，三体文明的到来并不是为了拯救人类，而是为了占领地球，将人类作为他们的奴隶。她的决定将给人类带来灭顶之灾...';
-      }
-
       final html = await crawl(chapterUrl);
       if (html.isEmpty) {
         return '';
       }
 
-      // 解析章节内容
-      final contentRegex = RegExp(r'<div id="content">(.*?)</div>', dotAll: true);
-      final contentMatch = contentRegex.firstMatch(html);
+      // 解析章节内容 - 尝试多种常见的章节内容选择器
+      final contentPatterns = [
+        RegExp(r'<div id="content">(.*?)</div>', dotAll: true),
+        RegExp(r'<div class="content">(.*?)</div>', dotAll: true),
+        RegExp(r'<div class="novel_content">(.*?)</div>', dotAll: true),
+        RegExp(r'<div id="txt_content">(.*?)</div>', dotAll: true),
+      ];
 
-      if (contentMatch != null && contentMatch.groupCount >= 1) {
-        var content = contentMatch.group(1)!;
-        content = content.replaceAll(RegExp(r'<[^>]*>'), '');
-        content = content.replaceAll('&nbsp;', ' ');
-        content = content.replaceAll('\n\n', '\n');
-        content = content.trim();
-        return content;
+      for (final pattern in contentPatterns) {
+        final match = pattern.firstMatch(html);
+        if (match != null && match.groupCount >= 1) {
+          var content = match.group(1)!;
+          content = content.replaceAll(RegExp(r'<[^>]*>'), '');
+          content = content.replaceAll('&nbsp;', ' ');
+          content = content.replaceAll('&gt;', '>');
+          content = content.replaceAll('&lt;', '<');
+          content = content.replaceAll(RegExp(r'\s+'), ' ').trim();
+          content = content.replaceAll('\n\n\n', '\n\n');
+          if (content.length > 50) {  // 确保内容不是太短
+            return content;
+          }
+        }
       }
 
       return '';
@@ -149,28 +135,14 @@ class WebCrawler {
     }
   }
 
-  /// 搜索书籍
+  /// 搜索书籍 - 只使用 ctext.org，因为其他网站有反爬
   Future<List<Map<String, dynamic>>> search(String keyword) async {
     print('WebCrawler: Searching for $keyword');
     final results = <Map<String, dynamic>>[];
 
-    // 直接添加用户提供的99csw.com链接，绕过搜索
-    if (keyword.contains('三体')) {
-      print('WebCrawler: Adding direct 99csw.com link for 三体');
-      results.add({
-        'title': '三体',
-        'author': '刘慈欣',
-        'url': 'https://www.99csw.com/book/576/index.htm',
-        'source': '99csw',
-      });
-      return results;
-    }
-
+    // 只使用 ctext.org 搜索
     final searchUrls = [
-      'https://www.99csw.com/modules/article/search.php?searchkey=$keyword',
-      'https://www.biquge5200.cc/search.php?keyword=$keyword',
-      'https://www.23us.com/modules/article/search.php?searchkey=$keyword',
-      'https://www.81zw.net/search.php?keyword=$keyword',
+      'https://ctext.org/search?remap=1&bq=$keyword',
     ];
 
     for (final url in searchUrls) {
@@ -200,41 +172,44 @@ class WebCrawler {
   List<Map<String, dynamic>> _parseSearchResults(String html, String url) {
     final results = <Map<String, dynamic>>[];
 
-    // 根据不同网站的结构解析
-    if (url.contains('99csw.com')) {
-      final regex = RegExp(r'<li>.*?<a href="(.*?)".*?>(.*?)</a>.*?<span class="s2">(.*?)</span>', dotAll: true);
+    // ctext.org 搜索结果解析
+    if (url.contains('ctext.org')) {
+      final regex = RegExp(r'<a href="([^"]+)">([^<]+)</a>');
       final matches = regex.allMatches(html);
+      final seenTitles = <String>{};
 
       for (final match in matches) {
-        if (match.groupCount >= 3) {
-          final path = match.group(1)!;
-          final title = match.group(2)!.replaceAll(RegExp(r'<[^>]*>'), '').trim();
-          final author = match.group(3)!.trim();
+        if (match.groupCount >= 2) {
+          var path = match.group(1) ?? '';
+          final title = match.group(2)?.trim() ?? '';
 
+          // 过滤无效链接
+          if (path.isEmpty || title.isEmpty || title.length < 2) continue;
+          if (seenTitles.contains(title)) continue;
+          // 排除工具页面
+          if (path.startsWith('/tools/') || path.startsWith('/board/') || path.startsWith('/area/')) continue;
+          // 排除导航链接
+          if (title.contains('上一章') || title.contains('下一章')) continue;
+          if (title.contains('第') && title.contains('章')) continue;
+          // 排除章节页
+          if (path.contains('chapter') || path.contains('page') || path.contains('.ztml')) continue;
+
+          // 标题包含搜索关键词（不区分大小写）或者包含中文
+          final hasChinese = RegExp(r'[\u4e00-\u9fa5]').hasMatch(title);
+          // 这里没有keyword参数，所以暂时保留所有中文链接
+          if (!hasChinese) continue;
+
+          // 如果是短链接，添加前缀
+          if (!path.startsWith('/')) {
+            path = '/$path';
+          }
+
+          seenTitles.add(title);
           results.add({
             'title': title,
-            'author': author,
-            'url': path,
-            'source': '99csw',
-          });
-        }
-      }
-    } else if (url.contains('biquge5200.cc')) {
-      // 笔趣阁解析
-      final regex = RegExp(r'<li>.*?<a href="(.*?)".*?>(.*?)</a>.*?<span class="s2">(.*?)</span>', dotAll: true);
-      final matches = regex.allMatches(html);
-
-      for (final match in matches) {
-        if (match.groupCount >= 3) {
-          final path = match.group(1)!;
-          final title = match.group(2)!.replaceAll(RegExp(r'<[^>]*>'), '').trim();
-          final author = match.group(3)!.trim();
-
-          results.add({
-            'title': title,
-            'author': author,
-            'url': path,
-            'source': 'biquge',
+            'author': '未知',
+            'url': 'https://ctext.org$path',
+            'source': 'ctext',
           });
         }
       }
