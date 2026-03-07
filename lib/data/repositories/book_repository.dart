@@ -3,6 +3,8 @@ import '../datasources/local_storage/local_book_data_source.dart';
 import '../datasources/remote/remote_book_data_source.dart';
 import '../models/book.dart';
 import '../models/chapter.dart';
+import '../../core/cache/cache_manager.dart';
+import '../utils/content_processor.dart';
 
 class BookRepository {
   BookRepository({
@@ -11,11 +13,15 @@ class BookRepository {
     LocalBookDataSource? localBookDataSource,
   })  : _assetDataSource = assetDataSource ?? const BookAssetDataSource(),
         _remoteDataSource = remoteDataSource,
-        _localBookDataSource = localBookDataSource ?? LocalBookDataSource();
+        _localBookDataSource = localBookDataSource ?? LocalBookDataSource(),
+        _cacheManager = CacheManager(),
+        _contentProcessor = ContentProcessor(null);
 
   final BookAssetDataSource _assetDataSource;
   final RemoteBookDataSource? _remoteDataSource;
   final LocalBookDataSource _localBookDataSource;
+  final CacheManager _cacheManager;
+  final ContentProcessor _contentProcessor;
 
   List<Book>? _cachedBooks;
   final Map<String, List<Chapter>> _cachedChapters = {};
@@ -33,10 +39,20 @@ class BookRepository {
   }
 
   Future<List<Chapter>> getChaptersForBook(Book book) async {
+    // 首先检查内存缓存
     final existing = _cachedChapters[book.id];
     if (existing != null) {
       return existing;
     }
+
+    // 检查本地缓存
+    final cachedChapters = await _cacheManager.getCachedChapterList(book.id);
+    if (cachedChapters != null) {
+      _cachedChapters[book.id] = cachedChapters;
+      return cachedChapters;
+    }
+
+    List<Chapter> chapters = const [];
 
     if (book.sourceType == BookSourceType.asset) {
       final detailAssetPath = book.detailAsset ?? book.toJson()['detailAsset'] as String?;
@@ -45,34 +61,68 @@ class BookRepository {
       }
 
       final result = await _assetDataSource.loadBookDetail(detailAssetPath);
-      _cachedChapters[book.id] = result.$2;
+      chapters = result.$2;
       _mergeBook(result.$1);
-      return result.$2;
-    }
-
-    if (book.sourceType == BookSourceType.localFile) {
+    } else if (book.sourceType == BookSourceType.localFile) {
       final result = await _localBookDataSource.loadBookDetail(book);
-      _cachedChapters[book.id] = result.$2;
+      chapters = result.$2;
       _mergeBook(result.$1);
-      return result.$2;
-    }
-
-    if (book.sourceType == BookSourceType.publicDomainApi) {
+    } else if (book.sourceType == BookSourceType.publicDomainApi) {
       final remoteSource = _remoteDataSource;
       final apiId = book.remoteApiId;
       if (remoteSource == null || apiId == null || apiId.isEmpty) {
         return const [];
       }
       final result = await remoteSource.fetchPublicDomainBook(apiId);
-      _cachedChapters[book.id] = result.$2;
+      chapters = result.$2;
       _mergeBook(result.$1);
-      return result.$2;
     }
 
-    return const [];
+    // 缓存章节列表
+    if (chapters.isNotEmpty) {
+      await _cacheManager.cacheChapterList(book.id, chapters);
+      _cachedChapters[book.id] = chapters;
+    }
+
+    return chapters;
   }
 
   Future<List<Book>> searchBooks(String keyword) async {
+    // 暂时禁用缓存，以便测试ContentProcessor
+    // final cachedResults = await _cacheManager.getCachedSearchResults(keyword);
+    // if (cachedResults != null) {
+    //   return cachedResults;
+    // }
+
+    print('BookRepository: Searching for keyword: $keyword');
+    // 1. 尝试使用ContentProcessor智能获取书籍内容
+    try {
+      print('BookRepository: Step 1: Using ContentProcessor to search for $keyword');
+      final (book, chapters) = await _contentProcessor.smartFetchBook(keyword);
+      print('BookRepository: ContentProcessor found book: ${book.title}');
+      
+      // 缓存书籍和章节
+      await _cacheManager.cacheBook(book);
+      await _cacheManager.cacheChapterList(book.id, chapters);
+      
+      // 添加到缓存列表
+      final all = await getAllBooks();
+      final existingIds = all.map((b) => b.id).toSet();
+      if (!existingIds.contains(book.id)) {
+        _cachedBooks = [...all, book];
+      }
+      
+      // 缓存搜索结果
+      await _cacheManager.cacheSearchResults(keyword, [book]);
+      
+      print('BookRepository: Returning book from ContentProcessor: ${book.title}');
+      return [book];
+    } catch (e) {
+      print('BookRepository: ContentProcessor search failed: $e');
+      // 继续使用传统搜索
+    }
+
+    // 2. 传统搜索作为回退
     final all = await getAllBooks();
     if (keyword.trim().isEmpty) {
       return all;
@@ -87,6 +137,8 @@ class BookRepository {
 
     final remoteSource = _remoteDataSource;
     if (remoteSource == null) {
+      // 缓存本地搜索结果
+      await _cacheManager.cacheSearchResults(keyword, localMatches);
       return localMatches;
     }
 
@@ -97,6 +149,8 @@ class BookRepository {
       // 忽略远程搜索错误，优先保证本地搜索可用。
       // ignore: avoid_print
       print('Remote book search failed: $e');
+      // 缓存本地搜索结果
+      await _cacheManager.cacheSearchResults(keyword, localMatches);
       return localMatches;
     }
     final existingIds = localMatches.map((b) => b.id).toSet();
@@ -134,7 +188,28 @@ class BookRepository {
       return 0;
     });
     
+    // 缓存搜索结果
+    await _cacheManager.cacheSearchResults(keyword, merged);
+    
     return merged;
+  }
+
+  /// 获取章节内容（带缓存）
+  Future<String> getChapterContent(String chapterId, Book book) async {
+    // 首先检查缓存
+    final cachedContent = await _cacheManager.getCachedChapterContent(chapterId);
+    if (cachedContent != null) {
+      return cachedContent;
+    }
+
+    // 这里可以实现从网络获取章节内容的逻辑
+    // 为了示例，这里返回空字符串
+    final content = '';
+
+    // 缓存章节内容
+    await _cacheManager.cacheChapterContent(chapterId, content);
+    
+    return content;
   }
 
   void _mergeBook(Book updated) {
@@ -159,6 +234,9 @@ class BookRepository {
       heatScore: updated.heatScore,
       localFilePath: updated.localFilePath,
     );
+
+    // 缓存书籍信息
+    _cacheManager.cacheBook(list[index]);
   }
 
   /// 从文件系统导入一本本地 TXT 书籍。
@@ -178,12 +256,29 @@ class BookRepository {
     );
     final current = _cachedBooks ?? <Book>[];
     _cachedBooks = <Book>[...current, book];
+    
+    // 缓存书籍信息
+    await _cacheManager.cacheBook(book);
+    
     return book;
   }
 
   /// 清除缓存，强制下次调用getAllBooks时重新加载书籍
-  void clearCache() {
+  Future<void> clearCache() async {
     _cachedBooks = null;
+    _cachedChapters.clear();
+    await _cacheManager.clearAllCache();
   }
-} 
+
+  /// 清理过期缓存
+  Future<void> cleanExpiredCache() async {
+    await _cacheManager.cleanExpiredCache();
+  }
+
+  /// 管理缓存大小
+  Future<void> manageCache() async {
+    await _cacheManager.manageCache();
+  }
+}
+ 
 

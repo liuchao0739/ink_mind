@@ -20,6 +20,7 @@ import '../stats/stats_page.dart';
 import '../../data/datasources/local_storage/hive_search_history_data_source.dart';
 
 final bookRepositoryProvider = Provider<BookRepository>((ref) {
+  print('HomePage: Creating BookRepository');
   final remote = CompositeRemoteBookDataSource(
     sources: [
       GutendexBookDataSource(),
@@ -30,7 +31,9 @@ final bookRepositoryProvider = Provider<BookRepository>((ref) {
       MockNovelDataSource(), // 添加模拟数据源，确保能搜索到小说
     ],
   );
-  return BookRepository(remoteDataSource: remote);
+  final repo = BookRepository(remoteDataSource: remote);
+  print('HomePage: BookRepository created');
+  return repo;
 });
 
 final _searchKeywordProvider = StateProvider<String>((ref) => '');
@@ -59,6 +62,7 @@ final _searchSuggestionsProvider = FutureProvider<List<String>>((ref) async {
 final _bookListProvider = FutureProvider<List<Book>>((ref) async {
   final repo = ref.watch(bookRepositoryProvider);
   final keyword = ref.watch(_searchKeywordProvider);
+  print('HomePage: Searching for keyword: $keyword');
   if (keyword.isEmpty) {
     return repo.getAllBooks();
   }
@@ -174,6 +178,7 @@ class HomePage extends ConsumerWidget {
                             icon: const Icon(Icons.search),
                             onPressed: () async {
                               final keyword = ref.read(_searchKeywordProvider.notifier).state;
+                              print('HomePage: Search button pressed with keyword: $keyword');
                               if (keyword.trim().isNotEmpty) {
                                 // 添加到搜索历史
                                 final dataSource = SearchHistoryDataSource();
@@ -181,6 +186,7 @@ class HomePage extends ConsumerWidget {
                                 // 刷新历史记录
                                 ref.refresh(_searchHistoryProvider);
                                 // 触发搜索
+                                print('HomePage: Refreshing book list provider');
                                 ref.refresh(_bookListProvider);
                               }
                             },
@@ -190,11 +196,15 @@ class HomePage extends ConsumerWidget {
                       ref.read(_searchKeywordProvider.notifier).state = value,
                   onSubmitted: (value) async {
                     if (value.trim().isNotEmpty) {
+                      print('HomePage: Search submitted with keyword: $value');
                       // 添加到搜索历史
                       final dataSource = SearchHistoryDataSource();
                       await dataSource.addHistory(value);
                       // 刷新历史记录
                       ref.refresh(_searchHistoryProvider);
+                      // 触发搜索
+                      print('HomePage: Refreshing book list provider');
+                      ref.refresh(_bookListProvider);
                     }
                   },
                 ),
