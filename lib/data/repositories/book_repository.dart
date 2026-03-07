@@ -104,6 +104,36 @@ class BookRepository {
       ...localMatches,
       ...remote.where((b) => !existingIds.contains(b.id)),
     ];
+    
+    // 优化搜索结果排序
+    merged.sort((a, b) {
+      // 1. 首先按匹配度排序（标题完全匹配优先）
+      final aTitleMatch = a.title.toLowerCase() == keyword.toLowerCase() ? 2 : a.title.toLowerCase().contains(keyword.toLowerCase()) ? 1 : 0;
+      final bTitleMatch = b.title.toLowerCase() == keyword.toLowerCase() ? 2 : b.title.toLowerCase().contains(keyword.toLowerCase()) ? 1 : 0;
+      if (aTitleMatch != bTitleMatch) {
+        return bTitleMatch.compareTo(aTitleMatch);
+      }
+      
+      // 2. 然后按热度排序
+      final aHeat = a.heatScore ?? 0;
+      final bHeat = b.heatScore ?? 0;
+      if (aHeat != bHeat) {
+        return bHeat.compareTo(aHeat);
+      }
+      
+      // 3. 最后按来源排序（本地书籍优先）
+      if (a.sourceType != b.sourceType) {
+        if (a.sourceType == BookSourceType.localFile || a.sourceType == BookSourceType.asset) {
+          return -1;
+        }
+        if (b.sourceType == BookSourceType.localFile || b.sourceType == BookSourceType.asset) {
+          return 1;
+        }
+      }
+      
+      return 0;
+    });
+    
     return merged;
   }
 
@@ -150,5 +180,10 @@ class BookRepository {
     _cachedBooks = <Book>[...current, book];
     return book;
   }
-}
+
+  /// 清除缓存，强制下次调用getAllBooks时重新加载书籍
+  void clearCache() {
+    _cachedBooks = null;
+  }
+} 
 

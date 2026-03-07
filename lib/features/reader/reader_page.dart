@@ -260,9 +260,9 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     final theme = Theme.of(context);
     final isDark = state.preference.isDarkMode;
     const lightPaper = Color(0xFFF7F1E1); // 微黄纸张
-    const darkPaper = Color(0xFF111111);
+    const darkPaper = Color(0xFF1E1E1E); // 深灰色背景，更适合阅读
     const lightText = Color(0xFF2C1B10); // 深棕接近黑色
-    const darkText = Color(0xFFEDEDED);
+    const darkText = Color(0xFFE0E0E0); // 浅灰色文字，提高可读性
     final backgroundColor = isDark ? darkPaper : lightPaper;
     final textColor = isDark ? darkText : lightText;
 
@@ -407,8 +407,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     final theme = Theme.of(context);
     final isDark = state.preference.isDarkMode;
     const lightPaper = Color(0xFFF7F1E1);
-    const darkPaper = Color(0xFF111111);
+    const darkPaper = Color(0xFF1E1E1E);
     final baseColor = isDark ? darkPaper : lightPaper;
+    final textColor = isDark ? Color(0xFFE0E0E0) : Color(0xFF2C1B10);
+    final iconColor = isDark ? Color(0xFFE0E0E0) : Color(0xFF2C1B10);
     final chapterTitle =
         state.chapters.isNotEmpty && state.currentChapterIndex < state.chapters.length
             ? state.chapters[state.currentChapterIndex].title
@@ -439,7 +441,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
               child: Row(
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.arrow_back),
+                    icon: Icon(Icons.arrow_back, color: iconColor),
                     onPressed: () {
                       Navigator.of(context).pop();
                     },
@@ -454,21 +456,21 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                           widget.book.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleMedium,
+                          style: theme.textTheme.titleMedium?.copyWith(color: textColor),
                         ),
                         if (chapterTitle.isNotEmpty)
                           Text(
                             chapterTitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodySmall,
+                            style: theme.textTheme.bodySmall?.copyWith(color: textColor),
                           ),
                       ],
                     ),
                   ),
                   if (widget.book.sourceType != BookSourceType.copyrightLink) ...[
                     IconButton(
-                      icon: const Icon(Icons.summarize_outlined),
+                      icon: Icon(Icons.summarize_outlined, color: iconColor),
                       tooltip: '本章书摘（智记）',
                       onPressed: () async {
                         final highlight = await controller.loadHighlight();
@@ -479,7 +481,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       },
                     ),
                     IconButton(
-                      icon: const Icon(Icons.volume_up_outlined),
+                      icon: Icon(Icons.volume_up_outlined, color: iconColor),
                       tooltip: '朗读本章（智声）',
                       onPressed: () {
                         controller.readAloudCurrent();
@@ -504,8 +506,10 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     final theme = Theme.of(context);
     final isDark = state.preference.isDarkMode;
     const lightPaper = Color(0xFFF7F1E1);
-    const darkPaper = Color(0xFF111111);
+    const darkPaper = Color(0xFF1E1E1E);
     final baseColor = isDark ? darkPaper : lightPaper;
+    final textColor = isDark ? Color(0xFFE0E0E0) : Color(0xFF2C1B10);
+    final iconColor = isDark ? Color(0xFFE0E0E0) : Color(0xFF2C1B10);
     final chapterTitle =
         state.chapters.isNotEmpty && state.currentChapterIndex < state.chapters.length
             ? state.chapters[state.currentChapterIndex].title
@@ -554,13 +558,13 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                             chapterTitle,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.bodyMedium,
+                            style: theme.textTheme.bodyMedium?.copyWith(color: textColor),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Text(
                           pageCount > 0 ? '$currentPage / $pageCount 页' : '',
-                          style: theme.textTheme.bodySmall,
+                          style: theme.textTheme.bodySmall?.copyWith(color: textColor),
                         ),
                       ],
                     ),
@@ -569,7 +573,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.chevron_left),
+                          icon: Icon(Icons.chevron_left, color: iconColor),
                           onPressed: state.currentChapterIndex > 0
                               ? () {
                                   _jumpToChapter(
@@ -581,14 +585,14 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                               : null,
                         ),
                         IconButton(
-                          icon: const Icon(Icons.menu_book_outlined),
+                          icon: Icon(Icons.menu_book_outlined, color: iconColor),
                           tooltip: '章节目录',
                           onPressed: () {
                             _showChapterList(context, state, controller);
                           },
                         ),
                         IconButton(
-                          icon: const Icon(Icons.chevron_right),
+                          icon: Icon(Icons.chevron_right, color: iconColor),
                           onPressed: state.currentChapterIndex + 1 <
                                   state.chapters.length
                               ? () {
@@ -602,7 +606,7 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
                         ),
                         const Spacer(),
                         IconButton(
-                          icon: const Icon(Icons.text_fields),
+                          icon: Icon(Icons.text_fields, color: iconColor),
                           tooltip: '阅读设置',
                           onPressed: () {
                             _showPreferenceSheet(context, state, controller);
@@ -632,45 +636,87 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
       return;
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = isDark ? Colors.tealAccent : Colors.teal;
+    final cardColor = isDark ? Colors.grey[800] : Colors.white;
+    final textColor = isDark ? Colors.grey[100] : Colors.grey[800];
+
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      backgroundColor: cardColor,
       builder: (context) {
         return Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'AI 书摘 · 智记',
-                  style: Theme.of(context).textTheme.titleMedium,
+                Row(
+                  children: [
+                    Icon(Icons.lightbulb_outline, color: primaryColor),
+                    const SizedBox(width: 8),
+                    Text(
+                      'AI 书摘 · 智记',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            color: primaryColor,
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 16),
                 if (highlight.summary != null)
-                  Text(
-                    highlight.summary!,
-                    style: Theme.of(context).textTheme.bodyMedium,
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.grey[700] : Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      highlight.summary!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: textColor,
+                            height: 1.6,
+                          ),
+                    ),
                   ),
                 if (highlight.sentences.isNotEmpty)
                   ...[
+                    const SizedBox(height: 20),
+                    Text(
+                      '精彩摘录',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: primaryColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
                     const SizedBox(height: 12),
                     ...highlight.sentences.map(
                       (s) => Padding(
                         padding: const EdgeInsets.symmetric(
-                          vertical: 4,
+                          vertical: 8,
                         ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('· '),
-                            Expanded(child: Text(s)),
-                          ],
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.grey[700] : Colors.grey[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border(left: BorderSide(color: primaryColor, width: 3)),
+                          ),
+                          child: Text(
+                            s,
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                  color: textColor,
+                                  height: 1.5,
+                                ),
+                          ),
                         ),
                       ),
                     ),
                   ],
+                const SizedBox(height: 20),
               ],
             ),
           ),
@@ -786,22 +832,31 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     ReaderState state,
     ReaderController controller,
   ) {
+    final isDark = state.preference.isDarkMode;
+    final backgroundColor = isDark ? Color(0xFF1E1E1E) : Colors.white;
+    final textColor = isDark ? Color(0xFFE0E0E0) : Colors.black;
+    final selectedColor = isDark ? Color(0xFF333333) : Colors.grey[100];
+    final selectedTextColor = isDark ? Color(0xFFE0E0E0) : Colors.black;
+
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      backgroundColor: backgroundColor,
       builder: (context) {
         return SafeArea(
           child: ListView.separated(
             itemCount: state.chapters.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
+            separatorBuilder: (_, __) => Divider(height: 1, color: isDark ? Colors.grey[700] : Colors.grey[200]),
             itemBuilder: (context, index) {
               final chapter = state.chapters[index];
               final isCurrent = index == state.currentChapterIndex;
               return ListTile(
                 title: Text(
                   chapter.title.isNotEmpty ? chapter.title : '第 ${index + 1} 章',
+                  style: TextStyle(color: isCurrent ? selectedTextColor : textColor),
                 ),
                 selected: isCurrent,
+                selectedTileColor: selectedColor,
                 onTap: () async {
                   Navigator.of(context).pop();
                   await _jumpToChapter(
@@ -827,78 +882,162 @@ class _ReaderPageState extends ConsumerState<ReaderPage> {
     var tempLineHeight = current.lineHeight;
     var tempDarkMode = current.isDarkMode;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = isDark ? Colors.tealAccent : Colors.teal;
+    final cardColor = isDark ? Colors.grey[800] : Colors.white;
+    final textColor = isDark ? Colors.grey[100] : Colors.grey[800];
+
     showModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
+      backgroundColor: cardColor,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
             return Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(20),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '阅读设置',
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 12),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('字体大小'),
-                      Text(tempFontSize.toStringAsFixed(0)),
+                      Icon(Icons.text_fields, color: primaryColor),
+                      const SizedBox(width: 8),
+                      Text(
+                        '阅读设置',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: primaryColor,
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
                     ],
                   ),
-                  Slider(
-                    value: tempFontSize,
-                    min: 12,
-                    max: 28,
-                    onChanged: (value) {
-                      setModalState(() {
-                        tempFontSize = value;
-                      });
-                      controller.updatePreference(
-                        state.preference.copyWith(fontSize: value),
-                      );
-                    },
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.grey[700] : Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.format_size, color: primaryColor, size: 18),
+                                const SizedBox(width: 8),
+                                Text('字体大小', style: TextStyle(color: textColor)),
+                              ],
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: primaryColor.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Text(
+                                tempFontSize.toStringAsFixed(0),
+                                style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Slider(
+                          value: tempFontSize,
+                          min: 12,
+                          max: 28,
+                          activeColor: primaryColor,
+                          inactiveColor: isDark ? Colors.grey[600] : Colors.grey[300],
+                          onChanged: (value) {
+                            setModalState(() {
+                              tempFontSize = value;
+                            });
+                            controller.updatePreference(
+                              state.preference.copyWith(fontSize: value),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.format_line_spacing, color: primaryColor, size: 18),
+                                const SizedBox(width: 8),
+                                Text('行距', style: TextStyle(color: textColor)),
+                              ],
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: primaryColor.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Text(
+                                tempLineHeight.toStringAsFixed(1),
+                                style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Slider(
+                          value: tempLineHeight,
+                          min: 1.2,
+                          max: 2.0,
+                          activeColor: primaryColor,
+                          inactiveColor: isDark ? Colors.grey[600] : Colors.grey[300],
+                          onChanged: (value) {
+                            setModalState(() {
+                              tempLineHeight = value;
+                            });
+                            controller.updatePreference(
+                              state.preference.copyWith(lineHeight: value),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('行距'),
-                      Text(tempLineHeight.toStringAsFixed(1)),
-                    ],
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.grey[700] : Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.nightlight_round, color: primaryColor, size: 18),
+                            const SizedBox(width: 8),
+                            Text('夜间模式', style: TextStyle(color: textColor)),
+                          ],
+                        ),
+                        Switch(
+                          value: tempDarkMode,
+                          activeColor: primaryColor,
+                          onChanged: (value) {
+                            setModalState(() {
+                              tempDarkMode = value;
+                            });
+                            controller.updatePreference(
+                              state.preference.copyWith(isDarkMode: value),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
                   ),
-                  Slider(
-                    value: tempLineHeight,
-                    min: 1.2,
-                    max: 2.0,
-                    onChanged: (value) {
-                      setModalState(() {
-                        tempLineHeight = value;
-                      });
-                      controller.updatePreference(
-                        state.preference.copyWith(lineHeight: value),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('夜间模式'),
-                    value: tempDarkMode,
-                    onChanged: (value) {
-                      setModalState(() {
-                        tempDarkMode = value;
-                      });
-                      controller.updatePreference(
-                        state.preference.copyWith(isDarkMode: value),
-                      );
-                    },
-                  ),
+                  const SizedBox(height: 20),
                 ],
               ),
             );

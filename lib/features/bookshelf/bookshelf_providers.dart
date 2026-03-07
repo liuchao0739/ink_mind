@@ -47,6 +47,8 @@ class BookshelfNotifier extends StateNotifier<AsyncValue<List<BookshelfItem>>> {
 
 final bookshelfJoinedProvider =
     FutureProvider<List<(BookshelfItem, Book)>>((ref) async {
+  // 依赖于 bookshelfItemsProvider，当书架数据变化时会自动重新计算
+  ref.watch(bookshelfItemsProvider);
   final repo = ref.watch(bookshelfRepositoryProvider);
   return repo.getBookshelfWithBooks();
 });

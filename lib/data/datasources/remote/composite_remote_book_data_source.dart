@@ -19,8 +19,15 @@ class CompositeRemoteBookDataSource implements RemoteBookDataSource {
       return const [];
     }
 
-    final futures = _sources.map((s) => s.searchRemote(keyword));
-    final results = await Future.wait(futures, eagerError: false);
+    final futures = _sources.map((s) async {
+      try {
+        return await s.searchRemote(keyword);
+      } catch (e) {
+        print('DataSource search error: $e');
+        return <Book>[];
+      }
+    });
+    final results = await Future.wait(futures);
 
     final merged = <String, Book>{};
     for (final list in results) {

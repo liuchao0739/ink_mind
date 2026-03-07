@@ -111,7 +111,7 @@ class LocalBookDataSource {
   }
 
   String _extractFileName(String path) {
-    // 简单从路径中截取文件名，兼容常见的 / 与 \\。
+    // 简单从路径中截取文件名，兼容常见的 / 与 \。
     var name = path;
     final slash = name.lastIndexOf('/');
     final backslash = name.lastIndexOf('\\');
@@ -120,6 +120,12 @@ class LocalBookDataSource {
       name = name.substring(index + 1);
     }
     return name;
+  }
+  
+  /// 保存书籍信息到本地存储
+  Future<void> saveBook(Book book) async {
+    final box = await _ensureBox();
+    await box.put(book.id, book.toJson());
   }
 }
 

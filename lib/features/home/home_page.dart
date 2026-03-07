@@ -7,22 +7,54 @@ import '../../data/models/book.dart';
 import '../../data/repositories/book_repository.dart';
 import '../../data/datasources/remote/gutendex_book_data_source.dart';
 import '../../data/datasources/remote/composite_remote_book_data_source.dart';
+import '../../data/datasources/remote/biquge_book_data_source.dart';
+import '../../data/datasources/remote/dingdian_book_data_source.dart';
+import '../../data/datasources/remote/bayi_book_data_source.dart';
+import '../../data/datasources/remote/mock_novel_data_source.dart';
+import '../../data/datasources/remote/novel_api_data_source.dart';
 import '../bookshelf/bookshelf_page.dart';
 import '../bookshelf/bookshelf_providers.dart';
 import '../reader/reader_page.dart';
 import '../ai/recommendation/recommendation_engine.dart';
 import '../stats/stats_page.dart';
+import '../../data/datasources/local_storage/hive_search_history_data_source.dart';
 
 final bookRepositoryProvider = Provider<BookRepository>((ref) {
   final remote = CompositeRemoteBookDataSource(
     sources: [
       GutendexBookDataSource(),
+      BiQuGeBookDataSource(),
+      DingDianBookDataSource(),
+      BaYiBookDataSource(),
+      NovelApiDataSource(), // 添加通用小说API数据源
+      MockNovelDataSource(), // 添加模拟数据源，确保能搜索到小说
     ],
   );
   return BookRepository(remoteDataSource: remote);
 });
 
 final _searchKeywordProvider = StateProvider<String>((ref) => '');
+
+final _searchHistoryProvider = FutureProvider<List<String>>((ref) async {
+  final dataSource = SearchHistoryDataSource();
+  return dataSource.getHistory();
+});
+
+final _searchSuggestionsProvider = FutureProvider<List<String>>((ref) async {
+  final keyword = ref.watch(_searchKeywordProvider);
+  if (keyword.isEmpty) return [];
+  
+  // 这里可以实现更复杂的搜索建议逻辑
+  // 目前使用简单的模拟数据
+  final suggestions = [
+    '$keyword 小说',
+    '$keyword 最新',
+    '$keyword 完结',
+    '${keyword}传',
+    '${keyword}记',
+  ];
+  return suggestions;
+});
 
 final _bookListProvider = FutureProvider<List<Book>>((ref) async {
   final repo = ref.watch(bookRepositoryProvider);
@@ -124,14 +156,145 @@ class HomePage extends ConsumerWidget {
         children: [
           Padding(
             padding: const EdgeInsets.all(12),
-            child: TextField(
-              decoration: const InputDecoration(
-                hintText: '搜索书名获取完整公版书（如 pride、sherlock）',
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (value) =>
-                  ref.read(_searchKeywordProvider.notifier).state = value,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  decoration: InputDecoration(
+                    hintText: '搜索书名获取小说（如 斗破苍穹、斗罗大陆）',
+                    prefixIcon: const Icon(Icons.search),
+                    border: const OutlineInputBorder(),
+                    suffixIcon: ref.watch(_bookListProvider).isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : IconButton(
+                            icon: const Icon(Icons.search),
+                            onPressed: () async {
+                              final keyword = ref.read(_searchKeywordProvider.notifier).state;
+                              if (keyword.trim().isNotEmpty) {
+                                // 添加到搜索历史
+                                final dataSource = SearchHistoryDataSource();
+                                await dataSource.addHistory(keyword);
+                                // 刷新历史记录
+                                ref.refresh(_searchHistoryProvider);
+                                // 触发搜索
+                                ref.refresh(_bookListProvider);
+                              }
+                            },
+                          ),
+                  ),
+                  onChanged: (value) =>
+                      ref.read(_searchKeywordProvider.notifier).state = value,
+                  onSubmitted: (value) async {
+                    if (value.trim().isNotEmpty) {
+                      // 添加到搜索历史
+                      final dataSource = SearchHistoryDataSource();
+                      await dataSource.addHistory(value);
+                      // 刷新历史记录
+                      ref.refresh(_searchHistoryProvider);
+                    }
+                  },
+                ),
+                const SizedBox(height: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ref.watch(_searchHistoryProvider).when(
+                      data: (history) {
+                        if (history.isEmpty) return Container();
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  '搜索历史',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Theme.of(context).colorScheme.onSurface,
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () async {
+                                    final dataSource = SearchHistoryDataSource();
+                                    await dataSource.clearHistory();
+                                    ref.refresh(_searchHistoryProvider);
+                                  },
+                                  child: Text(
+                                    '清除',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.copyWith(color: Colors.blue),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: history.map((keyword) {
+                                return InkWell(
+                                  onTap: () {
+                                    ref.read(_searchKeywordProvider.notifier).state = keyword;
+                                  },
+                                  child: Chip(
+                                    label: Text(keyword),
+                                    onDeleted: () async {
+                                      final dataSource = SearchHistoryDataSource();
+                                      await dataSource.removeHistory(keyword);
+                                      ref.refresh(_searchHistoryProvider);
+                                    },
+                                  ),
+                                );
+                              }).toList() as List<Widget>,
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                        );
+                      },
+                      loading: () => Container(),
+                      error: (error, stack) => Container(),
+                    ),
+                    ref.watch(_searchSuggestionsProvider).when(
+                      data: (suggestions) {
+                        if (suggestions.isEmpty) return Container();
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '搜索建议',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: Theme.of(context).colorScheme.onSurface,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: suggestions.map((suggestion) {
+                                return InkWell(
+                                  onTap: () {
+                                    ref.read(_searchKeywordProvider.notifier).state = suggestion;
+                                  },
+                                  child: Chip(
+                                    label: Text(suggestion),
+                                  ),
+                                );
+                              }).toList() as List<Widget>,
+                            ),
+                          ],
+                        );
+                      },
+                      loading: () => Container(),
+                      error: (error, stack) => Container(),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
           Expanded(
@@ -142,7 +305,7 @@ class HomePage extends ConsumerWidget {
                     child: Padding(
                       padding: EdgeInsets.all(24),
                       child: Text(
-                        '搜索书名获取完整公版书\n（如 pride、sherlock、adventure）',
+                        '搜索书名获取小说\n（如 斗破苍穹、斗罗大陆、pride）',
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -185,9 +348,11 @@ class HomePage extends ConsumerWidget {
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(12),
-                                  color: Theme.of(context)
-                                        .colorScheme
-                                        .surfaceContainerHighest,
+                                    color: Colors.grey[800],
+                                    border: Border.all(
+                                      color: Colors.grey[600]!,
+                                      width: 1,
+                                    ),
                                   ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -196,25 +361,29 @@ class HomePage extends ConsumerWidget {
                                         book.title,
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodyMedium,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                        ),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
                                         book.author,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall,
+                                        style: TextStyle(
+                                          color: Colors.grey[300],
+                                          fontSize: 14,
+                                        ),
                                       ),
                                       const Spacer(),
                                       Text(
                                         book.category,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .labelSmall,
+                                        style: TextStyle(
+                                          color: Colors.grey[400],
+                                          fontSize: 12,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -253,78 +422,159 @@ class HomePage extends ConsumerWidget {
                     ),
                     ...books.map((book) {
                       final isOnShelf = onShelfIds.contains(book.id);
-                      return ListTile(
-                        leading: const Icon(Icons.menu_book_outlined),
-                        title: Text(book.title),
-                        subtitle: Text(
-                          '${book.author} · ${book.category} · ${_sourceLabel(book.sourceType)}',
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              book.status == 'completed' ? '完结' : '连载中',
-                              style: TextStyle(
-                                color: book.status == 'completed'
-                                    ? Colors.green
-                                    : Colors.orange,
-                              ),
+                      return Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        elevation: 2,
+                        color: Colors.grey[800],
+                        child: ListTile(
+                          leading: Container(
+                            width: 48,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[700],
+                              borderRadius: BorderRadius.circular(4),
                             ),
-                            IconButton(
-                              onPressed: () async {
-                                if (book.sourceType ==
-                                        BookSourceType.copyrightLink &&
-                                    book.externalUrl != null &&
-                                    book.externalUrl!.isNotEmpty) {
-                                  try {
-                                    final uri = Uri.parse(book.externalUrl!);
-                                    await launchUrl(
-                                      uri,
-                                      mode: LaunchMode.externalApplication,
-                                    );
-                                  } catch (e) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content:
-                                            Text('打开链接失败：$e'),
+                            child: const Icon(
+                              Icons.menu_book_outlined, 
+                              size: 24,
+                              color: Colors.white,
+                            ),
+                            alignment: Alignment.center,
+                          ),
+                          title: Text(
+                            book.title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 4),
+                              Text(
+                                '${book.author} · ${book.category}',
+                                style: TextStyle(
+                                  color: Colors.grey[300],
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 2,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[700],
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      _sourceLabel(book.sourceType),
+                                      style: TextStyle(
+                                        color: Colors.grey[300],
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                  if (book.heatScore != null && book.heatScore! > 0) ...[
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[700],
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(
+                                            Icons.local_fire_department_outlined, 
+                                            size: 12, 
+                                            color: Colors.orange,
+                                          ),
+                                          const SizedBox(width: 2),
+                                          Text(
+                                            '热度 ${book.heatScore}',
+                                            style: TextStyle(
+                                              color: Colors.grey[300],
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                book.status == 'completed' ? '完结' : '连载中',
+                                style: TextStyle(
+                                  color: book.status == 'completed'
+                                      ? Colors.green
+                                      : Colors.orange,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              IconButton(
+                                onPressed: () async {
+                                  if (book.sourceType ==
+                                          BookSourceType.copyrightLink &&
+                                      book.externalUrl != null &&
+                                      book.externalUrl!.isNotEmpty) {
+                                    try {
+                                      final uri = Uri.parse(book.externalUrl!);
+                                      await launchUrl(
+                                        uri,
+                                        mode: LaunchMode.externalApplication,
+                                      );
+                                    } catch (e) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content:
+                                              Text('打开链接失败：$e'),
+                                        ),
+                                      );
+                                    }
+                                  } else {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => ReaderPage(book: book),
                                       ),
                                     );
                                   }
-                                } else {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => ReaderPage(book: book),
-                                    ),
-                                  );
-                                }
-                              },
-                              icon: Icon(
-                                book.sourceType ==
-                                        BookSourceType.copyrightLink
-                                    ? Icons.open_in_new
-                                    : Icons.menu_book,
+                                },
+                                icon: const Icon(
+                                  Icons.menu_book,
+                                  size: 20,
+                                  color: Colors.white,
+                                ),
+                                tooltip: '开始阅读',
                               ),
-                              tooltip: book.sourceType ==
-                                      BookSourceType.copyrightLink
-                                  ? '前往官方阅读'
-                                  : '开始阅读',
-                            ),
-                            IconButton(
-                              onPressed: () {
-                                ref
-                                    .read(bookshelfRepositoryProvider)
-                                    .toggleBook(book);
-                                ref
-                                    .read(bookshelfItemsProvider.notifier)
-                                    .load();
-                              },
-                              icon: Icon(
-                                isOnShelf
-                                    ? Icons.bookmark
-                                    : Icons.bookmark_border,
+                              IconButton(
+                                onPressed: () async {
+                                  // 使用BookshelfNotifier的toggle方法，确保状态更新的一致性
+                                  final bookshelfNotifier = ref.read(bookshelfItemsProvider.notifier);
+                                  await bookshelfNotifier.toggle(book);
+                                },
+                                icon: Icon(
+                                  isOnShelf
+                                      ? Icons.bookmark
+                                      : Icons.bookmark_border,
+                                  size: 20,
+                                  color: isOnShelf ? Colors.yellow : Colors.white,
+                                ),
+                                tooltip: isOnShelf ? '从书架移除' : '加入书架',
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       );
                     }),
