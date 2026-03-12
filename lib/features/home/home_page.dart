@@ -13,6 +13,7 @@ import '../bookshelf/bookshelf_providers.dart';
 import '../reader/reader_page.dart';
 import '../ai/recommendation/recommendation_engine.dart';
 import '../stats/stats_page.dart';
+import '../search/web_search_page.dart';
 import '../../data/datasources/local_storage/hive_search_history_data_source.dart';
 
 final bookRepositoryProvider = Provider<BookRepository>((ref) {
@@ -86,6 +87,17 @@ class HomePage extends ConsumerWidget {
           ],
         ),
         actions: [
+          IconButton(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const WebSearchPage(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.travel_explore),
+            tooltip: '全网搜索',
+          ),
           IconButton(
             onPressed: () async {
               try {

@@ -72,6 +72,9 @@ class ApiClient {
   final Random _random = Random();
   DateTime? _lastRequestTime;
 
+  /// 获取 Dio 实例（用于高级自定义请求）
+  Dio get dio => _dio;
+
   /// 随机获取用户代理
   String _getRandomUserAgent() {
     if (_config.userAgents.isEmpty) {
