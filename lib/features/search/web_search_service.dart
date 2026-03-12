@@ -70,7 +70,7 @@ class WebSearchService {
 
     for (final source in _dataSources) {
       try {
-        final sourceResults = await source.searchRemote(keyword, limit: limit);
+        final sourceResults = await source.searchRemote(keyword);
         
         for (final book in sourceResults) {
           // 去重

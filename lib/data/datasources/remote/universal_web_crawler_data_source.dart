@@ -211,7 +211,7 @@ class UniversalWebCrawlerDataSource extends SearchEngineDataSource {
       );
 
       // 分割内容成章节
-      final chapters = _splitIntoChapters(content.content);
+      final chapters = _splitIntoChapters(content.content, bookId: bookId);
       
       return (book, chapters);
     } catch (e) {
@@ -224,7 +224,7 @@ class UniversalWebCrawlerDataSource extends SearchEngineDataSource {
   }
 
   @override
-  Future<String> fetchChapterContent(String chapterId) async {
+  Future<String> fetchChapterContent(String chapterId, String novelId) async {
     // 从缓存获取
     if (_cacheBox != null) {
       return _cacheBox!.get('chapter_$chapterId') ?? '';
@@ -239,7 +239,7 @@ class UniversalWebCrawlerDataSource extends SearchEngineDataSource {
   ) async {
     final results = <String, String>{};
     for (final id in chapterIds) {
-      final content = await fetchChapterContent(id);
+      final content = await fetchChapterContent(id, novelId);
       if (content.isNotEmpty) {
         results[id] = content;
       }
@@ -440,17 +440,14 @@ class UniversalWebCrawlerDataSource extends SearchEngineDataSource {
   }
 
   String? _extractAuthor(String html) {
-    final patterns = [
-      RegExp(r'<meta[^>]*name="author"[^>]*content="([^"]*)"', caseSensitive: false),
-      RegExp(r'作者[：:]\s*([^\n<]{1,50})'),
-      RegExp(r'author["\']?\s*[:=]\s*["\']?([^"\'>\n]{1,50})', caseSensitive: false),
-    ];
-
-    for (final pattern in patterns) {
-      final match = pattern.firstMatch(html);
-      if (match != null) {
-        return match.group(1)?.trim();
-      }
+    // 尝试从 meta 标签提取
+    final metaPattern = RegExp(
+      '<meta[^>]*name="author"[^>]*content="([^"]*)"',
+      caseSensitive: false,
+    );
+    final metaMatch = metaPattern.firstMatch(html);
+    if (metaMatch != null) {
+      return metaMatch.group(1)?.trim();
     }
     return null;
   }
@@ -498,7 +495,7 @@ class UniversalWebCrawlerDataSource extends SearchEngineDataSource {
     return content;
   }
 
-  List<Chapter> _splitIntoChapters(String content, {int wordsPerChapter = 3000}) {
+  List<Chapter> _splitIntoChapters(String content, {int wordsPerChapter = 3000, required String bookId}) {
     final chapters = <Chapter>[];
     
     // 尝试识别章节标题
@@ -518,6 +515,7 @@ class UniversalWebCrawlerDataSource extends SearchEngineDataSource {
 
         chapters.add(Chapter(
           id: 'chapter_$i',
+          bookId: bookId,
           title: chapterTitle,
           content: chapterContent.replaceFirst(chapterTitle, '').trim(),
           index: i,
@@ -535,6 +533,7 @@ class UniversalWebCrawlerDataSource extends SearchEngineDataSource {
 
         chapters.add(Chapter(
           id: 'chapter_$i',
+          bookId: bookId,
           title: '第${i + 1}部分',
           content: chapterContent,
           index: i,

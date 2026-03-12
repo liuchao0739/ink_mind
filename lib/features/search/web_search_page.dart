@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../bookshelf/bookshelf_providers.dart';
+import '../../data/models/book.dart';
 import 'web_search_service.dart';
 import 'web_content_reader.dart';
 
@@ -294,8 +295,8 @@ class _WebSearchPageState extends ConsumerState<WebSearchPage> {
     );
   }
 
-  void _addToBookshelf(BuildContext context, book) {
-    ref.read(bookshelfProvider.notifier).addBook(book);
+  void _addToBookshelf(BuildContext context, dynamic book) {
+    ref.read(bookshelfItemsProvider.notifier).toggle(book as Book);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('已添加《${book.title}》到书架')),
     );
@@ -304,7 +305,7 @@ class _WebSearchPageState extends ConsumerState<WebSearchPage> {
 
 /// 搜索结果卡片
 class _SearchResultCard extends StatelessWidget {
-  final book;
+  final Book book;
   final VoidCallback onTap;
   final VoidCallback onAddToShelf;
 

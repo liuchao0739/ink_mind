@@ -150,7 +150,7 @@ class _WebContentReaderState extends State<WebContentReader> {
           
           // 正文内容
           SelectableText(
-            chapter.content,
+            chapter.content ?? '',
             style: TextStyle(
               fontSize: _fontSize,
               height: _lineHeight,

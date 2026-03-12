@@ -242,7 +242,7 @@ class SerpApiSearchDataSource extends SearchEngineDataSource {
       );
 
       // 如果内容很长，分割成章节
-      final chapters = content.chapters ?? _splitIntoChapters(content.content);
+      final chapters = content.chapters ?? _splitIntoChapters(content.content, bookId: bookId);
       
       return (book, chapters);
     } catch (e) {
@@ -261,7 +261,7 @@ class SerpApiSearchDataSource extends SearchEngineDataSource {
   }
 
   @override
-  Future<String> fetchChapterContent(String chapterId) async {
+  Future<String> fetchChapterContent(String chapterId, String novelId) async {
     // 直接返回章节内容
     return '';
   }
@@ -377,7 +377,7 @@ class SerpApiSearchDataSource extends SearchEngineDataSource {
     return textMatch?.group(1)?.trim();
   }
 
-  List<Chapter> _splitIntoChapters(String content, {int wordsPerChapter = 3000}) {
+  List<Chapter> _splitIntoChapters(String content, {int wordsPerChapter = 3000, required String bookId}) {
     final chapters = <Chapter>[];
     final words = content.split('');
     final totalChapters = (words.length / wordsPerChapter).ceil();
@@ -392,6 +392,7 @@ class SerpApiSearchDataSource extends SearchEngineDataSource {
 
       chapters.add(Chapter(
         id: 'chapter_$i',
+        bookId: bookId,
         title: '第${i + 1}章',
         content: chapterContent,
         index: i,
