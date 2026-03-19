@@ -87,77 +87,90 @@ class HomePage extends ConsumerWidget {
           ],
         ),
         actions: [
-          IconButton(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const WebSearchPage(),
-                ),
-              );
-            },
-            icon: const Icon(Icons.travel_explore),
-            tooltip: '全网搜索',
-          ),
-          IconButton(
-            onPressed: () async {
-              try {
-                final result = await FilePicker.platform.pickFiles(
-                  type: FileType.custom,
-                  allowedExtensions: ['txt'],
-                );
-                if (result == null || result.files.isEmpty) {
-                  return;
-                }
-                final path = result.files.single.path;
-                if (path == null || path.isEmpty) {
-                  return;
-                }
-                final repo = ref.read(bookRepositoryProvider);
-                final book = await repo.addLocalBookFromFile(path);
-                // 刷新列表，展示新导入的书。
-                // ignore: unused_result
-                ref.refresh(_bookListProvider);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('已导入本地书籍：${book.title}'),
+          PopupMenuButton<_AppBarAction>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: '更多',
+            onSelected: (action) async {
+              switch (action) {
+                case _AppBarAction.webSearch:
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const WebSearchPage(),
                     ),
                   );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('导入失败：$e'),
+                case _AppBarAction.importTxt:
+                  try {
+                    final result = await FilePicker.platform.pickFiles(
+                      type: FileType.custom,
+                      allowedExtensions: ['txt'],
+                    );
+                    if (result == null || result.files.isEmpty) return;
+                    final path = result.files.single.path;
+                    if (path == null || path.isEmpty) return;
+                    final repo = ref.read(bookRepositoryProvider);
+                    final book = await repo.addLocalBookFromFile(path);
+                    // ignore: unused_result
+                    ref.refresh(_bookListProvider);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('已导入本地书籍：${book.title}')),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('导入失败：$e')),
+                      );
+                    }
+                  }
+                case _AppBarAction.stats:
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const StatsPage(),
                     ),
                   );
-                }
+                case _AppBarAction.bookshelf:
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const BookshelfPage(),
+                    ),
+                  );
               }
             },
-            icon: const Icon(Icons.file_open_outlined),
-            tooltip: '导入本地 TXT',
-          ),
-          IconButton(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const StatsPage(),
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: _AppBarAction.webSearch,
+                child: ListTile(
+                  leading: Icon(Icons.travel_explore),
+                  title: Text('全网搜索'),
+                  contentPadding: EdgeInsets.zero,
                 ),
-              );
-            },
-            icon: const Icon(Icons.insights_outlined),
-            tooltip: '阅读画像',
-          ),
-          IconButton(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => const BookshelfPage(),
+              ),
+              PopupMenuItem(
+                value: _AppBarAction.importTxt,
+                child: ListTile(
+                  leading: Icon(Icons.file_open_outlined),
+                  title: Text('导入本地 TXT'),
+                  contentPadding: EdgeInsets.zero,
                 ),
-              );
-            },
-            icon: const Icon(Icons.bookmarks_outlined),
-            tooltip: '书架',
+              ),
+              PopupMenuItem(
+                value: _AppBarAction.stats,
+                child: ListTile(
+                  leading: Icon(Icons.insights_outlined),
+                  title: Text('阅读画像'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: _AppBarAction.bookshelf,
+                child: ListTile(
+                  leading: Icon(Icons.bookmarks_outlined),
+                  title: Text('书架'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -643,4 +656,4 @@ String _sourceLabel(BookSourceType type) {
   }
 }
 
-
+enum _AppBarAction { webSearch, importTxt, stats, bookshelf }

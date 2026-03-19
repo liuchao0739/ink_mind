@@ -93,6 +93,15 @@ class UniversalWebCrawlerDataSource extends SearchEngineDataSource {
         return [];
       }
 
+      // 检测是否被反爬虫拦截（CAPTCHA页面）
+      if (html.contains('Please complete the following challenge') ||
+          html.contains('bot protection') ||
+          html.contains('captcha')) {
+        print('UniversalWebCrawlerDataSource: Blocked by CAPTCHA');
+        return [];
+      }
+
+      print('DDG_HTML_SAMPLE: ${html.substring(0, html.length.clamp(0, 500))}');
       final results = _parseSearchResults(html);
       
       // 缓存结果
@@ -310,40 +319,83 @@ class UniversalWebCrawlerDataSource extends SearchEngineDataSource {
 
   List<SearchResult> _parseDuckDuckGoResults(String html) {
     final results = <SearchResult>[];
-    
-    // DuckDuckGo HTML 搜索结果解析
-    final resultBlocks = RegExp(
-      r'<div class="result[^"]*"[^>]*>.*?<h2[^>]*class="[^"]*result__title[^"]*"[^>]*>.*?<a[^>]*href="([^"]*)"[^>]*>(.*?)</a>.*?</h2>.*?<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>(.*?)</a>.*?</div>',
+
+    // DuckDuckGo HTML 搜索结果解析 - 每个结果在 class="result" 的 div 中
+    // 先按结果块分割，再从每个块中提取信息
+    final blockPattern = RegExp(
+      r'<div\s+class="[^"]*\bresult\b[^"]*"[^>]*>(.*?)</div>\s*</div>',
       caseSensitive: false,
       dotAll: true,
-    ).allMatches(html);
+    );
 
-    for (final match in resultBlocks) {
-      if (match.groupCount >= 3) {
+    for (final block in blockPattern.allMatches(html)) {
+      final blockHtml = block.group(0) ?? '';
+
+      // 提取标题链接
+      final linkMatch = RegExp(
+        r'<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]*)"[^>]*>(.*?)</a>',
+        caseSensitive: false,
+        dotAll: true,
+      ).firstMatch(blockHtml);
+
+      if (linkMatch == null) continue;
+
+      var url = linkMatch.group(1) ?? '';
+      var title = (linkMatch.group(2) ?? '').replaceAll(RegExp(r'<[^>]+>'), '').trim();
+
+      // 提取摘要
+      final snippetMatch = RegExp(
+        r'<a[^>]*class="[^"]*result__snippet[^"]*"[^>]*>(.*?)</a>',
+        caseSensitive: false,
+        dotAll: true,
+      ).firstMatch(blockHtml);
+      var snippet = (snippetMatch?.group(1) ?? '').replaceAll(RegExp(r'<[^>]+>'), '').trim();
+
+      // 处理 DuckDuckGo 的跳转链接
+      if (url.startsWith('//')) {
+        url = 'https:$url';
+      } else if (url.startsWith('/l/?')) {
+        final uddgMatch = RegExp(r'uddg=([^&]+)').firstMatch(url);
+        if (uddgMatch != null) {
+          url = Uri.decodeComponent(uddgMatch.group(1)!);
+        }
+      }
+
+      if (url.isNotEmpty && title.isNotEmpty) {
+        results.add(SearchResult(
+          title: title,
+          url: url,
+          snippet: snippet.isNotEmpty ? snippet : null,
+          source: 'DuckDuckGo',
+        ));
+      }
+    }
+
+    // 备用解析：如果上面没匹配到，尝试更宽松的模式
+    if (results.isEmpty) {
+      final linkPattern = RegExp(
+        r'<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]*)"[^>]*>(.*?)</a>',
+        caseSensitive: false,
+        dotAll: true,
+      );
+      for (final match in linkPattern.allMatches(html)) {
         var url = match.group(1) ?? '';
-        var title = match.group(2) ?? '';
-        var snippet = match.group(3) ?? '';
+        var title = (match.group(2) ?? '').replaceAll(RegExp(r'<[^>]+>'), '').trim();
 
-        // 清理 HTML 标签
-        title = title.replaceAll(RegExp(r'<[^>]+>'), '').trim();
-        snippet = snippet.replaceAll(RegExp(r'<[^>]+>'), '').trim();
-
-        // 处理 DuckDuckGo 的跳转链接
-        if (url.startsWith('//')) {
-          url = 'https:$url';
-        } else if (url.startsWith('/l/?')) {
-          // 提取实际 URL
+        if (url.startsWith('/l/?')) {
           final uddgMatch = RegExp(r'uddg=([^&]+)').firstMatch(url);
           if (uddgMatch != null) {
             url = Uri.decodeComponent(uddgMatch.group(1)!);
           }
+        } else if (url.startsWith('//')) {
+          url = 'https:$url';
         }
 
-        if (url.isNotEmpty && title.isNotEmpty) {
+        if (url.isNotEmpty && title.isNotEmpty && url.startsWith('http')) {
           results.add(SearchResult(
             title: title,
             url: url,
-            snippet: snippet.isNotEmpty ? snippet : null,
+            snippet: null,
             source: 'DuckDuckGo',
           ));
         }

@@ -128,7 +128,8 @@ class ApiClient {
           // 添加更多的HTTP头，模拟真实浏览器
           options.headers['Accept'] = 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8';
           options.headers['Accept-Language'] = 'zh-CN,zh;q=0.8,en-US;q=0.5,en;q=0.3';
-          options.headers['Accept-Encoding'] = 'gzip, deflate, br';
+          // 仅在调用方未显式指定时才设置压缩头
+          options.headers['Accept-Encoding'] ??= 'gzip, deflate, br';
           options.headers['Connection'] = 'keep-alive';
           options.headers['Upgrade-Insecure-Requests'] = '1';
           options.headers['Cache-Control'] = 'max-age=0';
@@ -257,6 +258,10 @@ class ApiClient {
           url,
           options: Options(
             responseType: ResponseType.plain,
+            headers: {
+              // 覆盖拦截器中的 Accept-Encoding，避免收到 brotli/gzip 压缩内容
+              'Accept-Encoding': 'identity',
+            },
             // 文本下载通常体积较大、服务器在海外，适当放宽超时。
             connectTimeout: const Duration(seconds: 20),
             receiveTimeout: const Duration(seconds: 60),
